@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+
+# Local config
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Mac/Win
+.DS_Store
+Thumbs.db
+
+# Keystore (nikoli v git)
+*.jks
+*.keystore
+
+# Logs
+*.log
