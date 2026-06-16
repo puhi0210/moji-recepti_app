@@ -1,21 +1,31 @@
 import {
   ActivityIndicator,
+  Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import {
+  deleteRecipe,
+  deleteRecipeIngredient,
+  getRecipe,
+} from "../../api/recipes.api";
 import { getApiErrorMessage } from "../../api/client";
-import { getRecipe } from "../../api/recipes.api";
 import type { RecipesStackParamList } from "../../navigation/RecipesStack";
 import type { RecipeIngredient } from "../../types/recipe.types";
 
 type Props = NativeStackScreenProps<RecipesStackParamList, "RecipeDetail">;
 
 function formatIngredientLine(item: RecipeIngredient): string {
-  const name = item.ingredientName || item.name || "Sestavina";
+  const name =
+    item.ingredientName ||
+    item.ingredient_name ||
+    item.name ||
+    "Sestavina";
 
   const quantity =
     item.quantity !== null && item.quantity !== undefined
@@ -28,13 +38,86 @@ function formatIngredientLine(item: RecipeIngredient): string {
   return amount ? `${name} — ${amount}` : name;
 }
 
-export function RecipeDetailScreen({ route }: Props) {
+function getRecipeIngredientId(item: RecipeIngredient): number | null {
+  return item.id ?? null;
+}
+
+export function RecipeDetailScreen({ navigation, route }: Props) {
+  const queryClient = useQueryClient();
   const { id } = route.params;
 
   const recipeQuery = useQuery({
     queryKey: ["recipe", id],
     queryFn: () => getRecipe(id),
   });
+
+  const deleteRecipeMutation = useMutation({
+    mutationFn: () => deleteRecipe(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["recipes"] });
+      navigation.navigate("RecipesList");
+    },
+  });
+
+  const deleteIngredientMutation = useMutation({
+    mutationFn: (recipeIngredientId: number) =>
+      deleteRecipeIngredient(id, recipeIngredientId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["recipe", id] });
+    },
+  });
+
+  function confirmDeleteRecipe() {
+    Alert.alert(
+      "Izbriši recept",
+      "Ali res želiš izbrisati ta recept?",
+      [
+        { text: "Prekliči", style: "cancel" },
+        {
+          text: "Izbriši",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteRecipeMutation.mutateAsync();
+            } catch (err) {
+              Alert.alert("Napaka", getApiErrorMessage(err));
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  function confirmDeleteIngredient(item: RecipeIngredient) {
+    const rowId = getRecipeIngredientId(item);
+
+    if (!rowId) {
+      Alert.alert(
+        "Napaka",
+        "Manjka ID vrstice sestavine. Pošlji mi JSON response recepta."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Izbriši sestavino",
+      "Ali res želiš izbrisati to sestavino iz recepta?",
+      [
+        { text: "Prekliči", style: "cancel" },
+        {
+          text: "Izbriši",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteIngredientMutation.mutateAsync(rowId);
+            } catch (err) {
+              Alert.alert("Napaka", getApiErrorMessage(err));
+            }
+          },
+        },
+      ]
+    );
+  }
 
   if (recipeQuery.isLoading) {
     return (
@@ -65,22 +148,41 @@ export function RecipeDetailScreen({ route }: Props) {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{recipe?.title}</Text>
 
+      <View style={styles.actionRow}>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => navigation.navigate("RecipeForm", { id })}
+        >
+          <Text style={styles.secondaryButtonText}>Uredi recept</Text>
+        </Pressable>
+
+        <Pressable style={styles.dangerButton} onPress={confirmDeleteRecipe}>
+          <Text style={styles.dangerButtonText}>
+            {deleteRecipeMutation.isPending ? "Brišem..." : "Izbriši"}
+          </Text>
+        </Pressable>
+      </View>
+
       <View style={styles.metaGrid}>
         <View style={styles.metaCard}>
           <Text style={styles.metaLabel}>Priprava</Text>
           <Text style={styles.metaValue}>
-            {recipe?.prep_time_minutes != null
-              ? `${recipe.prep_time_minutes} min`
-              : "-"}
+            {recipe?.prepTimeMinutes != null
+              ? `${recipe.prepTimeMinutes} min`
+              : recipe?.prep_time_minutes != null
+                ? `${recipe.prep_time_minutes} min`
+                : "-"}
           </Text>
         </View>
 
         <View style={styles.metaCard}>
           <Text style={styles.metaLabel}>Kuhanje</Text>
           <Text style={styles.metaValue}>
-            {recipe?.cook_time_minutes != null
-              ? `${recipe.cook_time_minutes} min`
-              : "-"}
+            {recipe?.cookTimeMinutes != null
+              ? `${recipe.cookTimeMinutes} min`
+              : recipe?.cook_time_minutes != null
+                ? `${recipe.cook_time_minutes} min`
+                : "-"}
           </Text>
         </View>
 
@@ -96,7 +198,18 @@ export function RecipeDetailScreen({ route }: Props) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Sestavine</Text>
+        <View style={styles.cardHeader}>
+          <Text style={styles.label}>Sestavine</Text>
+
+          <Pressable
+            style={styles.smallButton}
+            onPress={() =>
+              navigation.navigate("RecipeIngredientForm", { recipeId: id })
+            }
+          >
+            <Text style={styles.smallButtonText}>+ Dodaj</Text>
+          </Pressable>
+        </View>
 
         {ingredients.length === 0 ? (
           <Text style={styles.emptyText}>Ni dodanih sestavin.</Text>
@@ -108,11 +221,34 @@ export function RecipeDetailScreen({ route }: Props) {
 
               return (
                 <View key={key} style={styles.ingredientRow}>
-                  <Text style={styles.ingredientText}>
-                    {formatIngredientLine(item)}
-                  </Text>
+                  <View style={styles.ingredientTextBlock}>
+                    <Text style={styles.ingredientText}>
+                      {formatIngredientLine(item)}
+                    </Text>
 
-                  {note ? <Text style={styles.noteText}>{note}</Text> : null}
+                    {note ? <Text style={styles.noteText}>{note}</Text> : null}
+                  </View>
+
+                  <View style={styles.ingredientActions}>
+                    <Pressable
+                      style={styles.inlineButton}
+                      onPress={() =>
+                        navigation.navigate("RecipeIngredientForm", {
+                          recipeId: id,
+                          recipeIngredient: item,
+                        })
+                      }
+                    >
+                      <Text style={styles.inlineButtonText}>Uredi</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.inlineDangerButton}
+                      onPress={() => confirmDeleteIngredient(item)}
+                    >
+                      <Text style={styles.inlineDangerButtonText}>Briši</Text>
+                    </Pressable>
+                  </View>
                 </View>
               );
             })}
@@ -125,8 +261,19 @@ export function RecipeDetailScreen({ route }: Props) {
         <Text style={styles.value}>{recipe?.instructions || "-"}</Text>
       </View>
 
-      {recipe?.updated_at ? (
-        <Text style={styles.updated}>Zadnja sprememba: {recipe.updated_at}</Text>
+      <View style={styles.card}>
+        <Text style={styles.label}>Vidnost</Text>
+        <Text style={styles.value}>
+          {Number(recipe?.isPublic ?? recipe?.is_public ?? 0) === 1
+            ? "Javen recept"
+            : "Zaseben recept"}
+        </Text>
+      </View>
+
+      {recipe?.updatedAt || recipe?.updated_at ? (
+        <Text style={styles.updated}>
+          Zadnja sprememba: {recipe.updatedAt || recipe.updated_at}
+        </Text>
       ) : null}
     </ScrollView>
   );
@@ -140,6 +287,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 12,
+    paddingBottom: 32,
   },
   center: {
     flex: 1,
@@ -156,6 +304,36 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#212529",
     marginBottom: 4,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#ced4da",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    color: "#495057",
+    fontWeight: "800",
+  },
+  dangerButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: "#c92a2a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dangerButtonText: {
+    color: "#ffffff",
+    fontWeight: "800",
   },
   metaGrid: {
     flexDirection: "row",
@@ -188,6 +366,12 @@ const styles = StyleSheet.create({
     borderColor: "#e9ecef",
     gap: 8,
   },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   label: {
     fontSize: 17,
     fontWeight: "800",
@@ -207,6 +391,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f3f5",
+    gap: 8,
+  },
+  ingredientTextBlock: {
+    gap: 4,
   },
   ingredientText: {
     color: "#212529",
@@ -216,7 +404,53 @@ const styles = StyleSheet.create({
   noteText: {
     color: "#6c757d",
     fontSize: 13,
-    marginTop: 4,
+  },
+  ingredientActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  smallButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    backgroundColor: "#212529",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  smallButtonText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  inlineButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#ced4da",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  inlineButtonText: {
+    color: "#495057",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  inlineDangerButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    backgroundColor: "#fff5f5",
+    borderWidth: 1,
+    borderColor: "#ffc9c9",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  inlineDangerButtonText: {
+    color: "#c92a2a",
+    fontWeight: "800",
+    fontSize: 13,
   },
   updated: {
     color: "#868e96",

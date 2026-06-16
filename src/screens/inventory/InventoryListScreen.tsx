@@ -27,8 +27,28 @@ function getItemName(item: InventoryItem): string {
     item.custom_name ||
     item.ingredientName ||
     item.ingredient_name ||
-    "Sestavina"
+    "Zaloga"
   );
+}
+
+function getNumberValue(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(String(value).replace(",", "."));
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function isLowStock(item: InventoryItem): boolean {
+  const quantity = getNumberValue(item.quantity);
+  const minQuantity = getNumberValue(item.minQuantity ?? item.min_quantity);
+
+  if (quantity === null || minQuantity === null) {
+    return false;
+  }
+
+  return quantity <= minQuantity;
 }
 
 function getMinQuantity(item: InventoryItem): string {
@@ -43,19 +63,26 @@ function getExpiresAt(item: InventoryItem): string {
 export function InventoryListScreen({ navigation }: Props) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [lowStockOnly, setLowStockOnly] = useState(false);
 
   const debouncedSearch = useDebounce(search, 400);
 
   const inventoryQuery = useQuery({
     queryKey: [
       "inventory",
-      { search: debouncedSearch, page, pageSize: PAGE_SIZE },
+      {
+        search: debouncedSearch,
+        page,
+        pageSize: PAGE_SIZE,
+        lowStockOnly,
+      },
     ],
     queryFn: () =>
       getInventoryItems({
         search: debouncedSearch.trim(),
         page,
         pageSize: PAGE_SIZE,
+        lowStockOnly,
       }),
   });
 
@@ -68,18 +95,32 @@ export function InventoryListScreen({ navigation }: Props) {
     setPage(1);
   }
 
+  function handleToggleLowStockOnly() {
+    setLowStockOnly((current) => !current);
+    setPage(1);
+  }
+
   function renderItem({ item }: { item: InventoryItem }) {
     const name = getItemName(item);
     const quantity = item.quantity != null ? String(item.quantity) : "-";
     const unit = item.unit || "";
     const location = item.location || "-";
+    const lowStock = isLowStock(item);
 
     return (
       <Pressable
-        style={styles.card}
+        style={[styles.card, lowStock && styles.lowStockCard]}
         onPress={() => navigation.navigate("InventoryDetail", { id: item.id })}
       >
-        <Text style={styles.itemTitle}>{name}</Text>
+        <View style={styles.cardHeader}>
+          <Text style={styles.itemTitle}>{name}</Text>
+
+          {lowStock ? (
+            <View style={styles.lowStockBadge}>
+              <Text style={styles.lowStockBadgeText}>Nizka zaloga</Text>
+            </View>
+          ) : null}
+        </View>
 
         <View style={styles.row}>
           <Text style={styles.metaText}>
@@ -98,9 +139,18 @@ export function InventoryListScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Inventar</Text>
-        <Text style={styles.subtitle}>Skupaj: {total}</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.title}>Inventar</Text>
+          <Text style={styles.subtitle}>Skupaj: {total}</Text>
+        </View>
+
+        <Pressable
+          style={styles.addButton}
+          onPress={() => navigation.navigate("InventoryForm")}
+        >
+          <Text style={styles.addButtonText}>+ Dodaj</Text>
+        </Pressable>
       </View>
 
       <TextInput
@@ -112,6 +162,23 @@ export function InventoryListScreen({ navigation }: Props) {
         autoCapitalize="none"
         autoCorrect={false}
       />
+
+      <Pressable
+        style={[
+          styles.filterButton,
+          lowStockOnly && styles.filterButtonActive,
+        ]}
+        onPress={handleToggleLowStockOnly}
+      >
+        <Text
+          style={[
+            styles.filterButtonText,
+            lowStockOnly && styles.filterButtonTextActive,
+          ]}
+        >
+          {lowStockOnly ? "✓ Samo nizka zaloga" : "Samo nizka zaloga"}
+        </Text>
+      </Pressable>
 
       {inventoryQuery.isLoading ? (
         <View style={styles.center}>
@@ -153,7 +220,9 @@ export function InventoryListScreen({ navigation }: Props) {
                 <Text style={styles.centerText}>
                   {debouncedSearch
                     ? "Za ta iskalni niz ni rezultatov."
-                    : "Trenutno ni dodanih zalog."}
+                    : lowStockOnly
+                      ? "Trenutno ni zalog z nizkim stanjem."
+                      : "Trenutno ni dodanih zalog."}
                 </Text>
               </View>
             }
@@ -195,8 +264,12 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#f8f9fa",
   },
-  header: {
+  headerRow: {
     marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
   title: {
     fontSize: 30,
@@ -207,6 +280,18 @@ const styles = StyleSheet.create({
     color: "#6c757d",
     marginTop: 2,
   },
+  addButton: {
+    minHeight: 40,
+    borderRadius: 10,
+    backgroundColor: "#212529",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  addButtonText: {
+    color: "#ffffff",
+    fontWeight: "800",
+  },
   searchInput: {
     minHeight: 48,
     borderWidth: 1,
@@ -216,7 +301,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#ffffff",
     color: "#212529",
+    marginBottom: 10,
+  },
+  filterButton: {
+    minHeight: 42,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#ced4da",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
+  },
+  filterButtonActive: {
+    backgroundColor: "#fff5f5",
+    borderColor: "#ffc9c9",
+  },
+  filterButtonText: {
+    color: "#495057",
+    fontWeight: "800",
+  },
+  filterButtonTextActive: {
+    color: "#c92a2a",
   },
   list: {
     gap: 12,
@@ -234,10 +340,34 @@ const styles = StyleSheet.create({
     borderColor: "#e9ecef",
     gap: 8,
   },
+  lowStockCard: {
+    borderColor: "#ffc9c9",
+    backgroundColor: "#fffafa",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   itemTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#212529",
+    flex: 1,
+  },
+  lowStockBadge: {
+    borderRadius: 999,
+    backgroundColor: "#fff5f5",
+    borderWidth: 1,
+    borderColor: "#ffc9c9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  lowStockBadgeText: {
+    color: "#c92a2a",
+    fontSize: 12,
+    fontWeight: "800",
   },
   row: {
     flexDirection: "row",

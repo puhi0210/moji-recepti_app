@@ -2,11 +2,19 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ShoppingListsScreen } from "../screens/shoppingLists/ShoppingListsScreen";
 import { ShoppingListDetailScreen } from "../screens/shoppingLists/ShoppingListDetailScreen";
+import { ShoppingListFormScreen } from "../screens/shoppingLists/ShoppingListFormScreen";
+import { ShoppingListItemFormScreen } from "../screens/shoppingLists/ShoppingListItemFormScreen";
 import { useAuthStore } from "../auth/auth.store";
+import type { ShoppingListItem } from "../types/shoppingList.types";
 
 export type ShoppingListsStackParamList = {
   ShoppingLists: undefined;
   ShoppingListDetail: { id: number };
+  ShoppingListForm: { id?: number } | undefined;
+  ShoppingListItemForm: {
+    listId: number;
+    item?: ShoppingListItem;
+  };
 };
 
 const Stack = createNativeStackNavigator<ShoppingListsStackParamList>();
@@ -41,6 +49,7 @@ export function ShoppingListsStack() {
           headerRight: () => <UserHeaderButton />,
         }}
       />
+
       <Stack.Screen
         name="ShoppingListDetail"
         component={ShoppingListDetailScreen}
@@ -48,6 +57,22 @@ export function ShoppingListsStack() {
           title: "Nakupovalni listek",
           headerRight: () => <UserHeaderButton />,
         }}
+      />
+
+      <Stack.Screen
+        name="ShoppingListForm"
+        component={ShoppingListFormScreen}
+        options={({ route }) => ({
+          title: route.params?.id ? "Uredi listek" : "Nov listek",
+        })}
+      />
+
+      <Stack.Screen
+        name="ShoppingListItemForm"
+        component={ShoppingListItemFormScreen}
+        options={({ route }) => ({
+          title: route.params.item ? "Uredi postavko" : "Dodaj postavko",
+        })}
       />
     </Stack.Navigator>
   );
