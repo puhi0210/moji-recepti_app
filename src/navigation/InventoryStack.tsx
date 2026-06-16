@@ -2,11 +2,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { InventoryListScreen } from "../screens/inventory/InventoryListScreen";
 import { InventoryDetailScreen } from "../screens/inventory/InventoryDetailScreen";
+import { InventoryFormScreen } from "../screens/inventory/InventoryFormScreen";
 import { useAuthStore } from "../auth/auth.store";
 
 export type InventoryStackParamList = {
   InventoryList: undefined;
   InventoryDetail: { id: number };
+  InventoryForm: { id?: number } | undefined;
 };
 
 const Stack = createNativeStackNavigator<InventoryStackParamList>();
@@ -41,13 +43,22 @@ export function InventoryStack() {
           headerRight: () => <UserHeaderButton />,
         }}
       />
+
       <Stack.Screen
         name="InventoryDetail"
         component={InventoryDetailScreen}
         options={{
-          title: "Sestavina",
+          title: "Zaloga",
           headerRight: () => <UserHeaderButton />,
         }}
+      />
+
+      <Stack.Screen
+        name="InventoryForm"
+        component={InventoryFormScreen}
+        options={({ route }) => ({
+          title: route.params?.id ? "Uredi zalogo" : "Nova zaloga",
+        })}
       />
     </Stack.Navigator>
   );

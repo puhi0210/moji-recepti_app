@@ -88,9 +88,18 @@ export function ShoppingListsScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Listki</Text>
-        <Text style={styles.subtitle}>Skupaj: {total}</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.title}>Listki</Text>
+          <Text style={styles.subtitle}>Skupaj: {total}</Text>
+        </View>
+
+        <Pressable
+          style={styles.addButton}
+          onPress={() => navigation.navigate("ShoppingListForm")}
+        >
+          <Text style={styles.addButtonText}>+ Dodaj</Text>
+        </Pressable>
       </View>
 
       <TextInput
@@ -185,8 +194,12 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#f8f9fa",
   },
-  header: {
+  headerRow: {
     marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
   title: {
     fontSize: 30,
@@ -196,6 +209,18 @@ const styles = StyleSheet.create({
   subtitle: {
     color: "#6c757d",
     marginTop: 2,
+  },
+  addButton: {
+    minHeight: 40,
+    borderRadius: 10,
+    backgroundColor: "#212529",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  addButtonText: {
+    color: "#ffffff",
+    fontWeight: "800",
   },
   searchInput: {
     minHeight: 48,

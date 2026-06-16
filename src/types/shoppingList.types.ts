@@ -10,6 +10,7 @@ export type ShoppingList = {
 
 export type ShoppingListItem = {
   id: number;
+
   shoppingListId?: number | null;
   shopping_list_id?: number | null;
 
@@ -18,6 +19,7 @@ export type ShoppingListItem = {
 
   ingredientName?: string | null;
   ingredient_name?: string | null;
+
   customName?: string | null;
   custom_name?: string | null;
 
