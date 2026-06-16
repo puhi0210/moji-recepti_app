@@ -15,6 +15,14 @@ Projekt je namenjen preprostemu, preglednemu upravljanju:
 Mobilna aplikacija je zasnovana kot funkcionalen MVP, ki sledi strukturi obstoječega web clienta in omogoča uporabo na Android telefonu prek Expo Go ali prek APK builda.
 
 ---
+## Prenos aplikacije
+
+Zadnjo Android APK verzijo je mogoče prenesti pod zavihkom **Releases**:
+
+```txt
+https://github.com/puhi0210/moji-recepti_app/releases
+```
+---
 
 ## Povezani repozitoriji
 
