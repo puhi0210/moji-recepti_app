@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { useAuthStore } from "../auth/auth.store";
 import { setUnauthorizedHandler } from "../api/client";
@@ -13,7 +14,38 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: "#212529",
+        tabBarInactiveTintColor: "#868e96",
+        tabBarStyle: {
+          borderTopColor: "#e9ecef",
+          backgroundColor: "#ffffff",
+        },
+        tabBarLabelStyle: {
+          fontWeight: "700",
+          fontSize: 12,
+        },
+        tabBarIcon: ({ color, size, focused }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = "ellipse-outline";
+
+          if (route.name === "Recepti") {
+            iconName = focused ? "book" : "book-outline";
+          }
+
+          if (route.name === "Inventar") {
+            iconName = focused ? "cube" : "cube-outline";
+          }
+
+          if (route.name === "Listki") {
+            iconName = focused ? "checkbox" : "checkbox-outline";
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
       <Tab.Screen
         name="Recepti"
         component={RecipesStack}
